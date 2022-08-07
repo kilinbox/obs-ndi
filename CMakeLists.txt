@@ -1,24 +1,22 @@
 cmake_minimum_required(VERSION 3.5)
 project(obs-ndi VERSION 4.9.0)
 
+# if (WIN32 OR APPLE)
+#     include(external/FindLibObs.cmake)
+# endif()
+
+# find_package(LibObs REQUIRED)
+# find_package(Qt5 REQUIRED Core Widgets)
+
+# Qt build stuff
 set(CMAKE_PREFIX_PATH "${QTDIR}")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON) # For resources.qrc
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm") 
-    set(CMAKE_CXX_FLAGS "-mfpu=neon")
-endif()
-
-if (WIN32 OR APPLE)
-    include(external/FindLibObs.cmake)
-endif()
-
-find_package(LibObs REQUIRED)
-find_package(Qt5 REQUIRED Core Widgets)
+# Find Qt
+find_qt(COMPONENTS Core Widgets)
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(ARCH 64)
@@ -26,7 +24,13 @@ else()
 	set(ARCH 32)
 endif()
 
-set(obs-ndi_SOURCES
+# Setup target
+add_library(obs-ndi MODULE)
+add_library(OBS::obs-ndi ALIAS obs-ndi)
+
+target_sources(
+	obs-ndi
+  	PRIVATE 
 	src/obs-ndi.cpp
 	src/obs-ndi-source.cpp
 	src/obs-ndi-output.cpp
@@ -35,29 +39,23 @@ set(obs-ndi_SOURCES
 	src/main-output.cpp
 	src/preview-output.cpp
 	src/Config.cpp
-	src/forms/output-settings.cpp)
-
-set(obs-ndi_HEADERS
+	src/forms/output-settings.cpp
 	src/obs-ndi.h
 	src/main-output.h
 	src/preview-output.h
 	src/Config.h
 	src/forms/output-settings.h)
 
-add_library(obs-ndi MODULE
-	${obs-ndi_SOURCES}
-	${obs-ndi_HEADERS})
-
 include_directories(
 	"lib/ndi"
-	"${LIBOBS_INCLUDE_DIR}/../UI/obs-frontend-api"
 	${Qt5Core_INCLUDES}
 	${Qt5Widgets_INCLUDES})
 
 target_link_libraries(obs-ndi
-	libobs
-	Qt5::Core
-	Qt5::Widgets)
+	OBS::libobs
+	OBS::frontend-api
+	Qt::Core
+	Qt::Widgets)
 
 # Windows
 if(WIN32)
@@ -149,19 +147,15 @@ endif()
 # OSX
 if(APPLE)
 	set_target_properties(obs-ndi PROPERTIES PREFIX "")
-	target_link_libraries(obs-ndi
-		"${OBS_FRONTEND_LIB}")
+#	target_link_libraries(obs-ndi
+#		"${OBS_FRONTEND_LIB}")
 endif()
 
 # Linux
 if(UNIX AND NOT APPLE)
 	include(GNUInstallDirs)
 
-	if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm") 
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -mtune=arm7 -Ofast")
-	else()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -mtune=core2 -Ofast")
-	endif()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -mtune=core2 -Ofast")
 
 	set_target_properties(obs-ndi PROPERTIES PREFIX "")
 	target_link_libraries(obs-ndi obs-frontend-api)
@@ -178,3 +172,7 @@ if(UNIX AND NOT APPLE)
 	install(FILES ${locale_files}
 		DESTINATION "${CMAKE_INSTALL_FULL_DATAROOTDIR}/obs/obs-plugins/obs-ndi/locale")
 endif()
+
+# Final CMake helpers
+setup_plugin_target(obs-ndi)
+setup_target_resources(obs-websocket "obs-plugins/obs-ndi")
